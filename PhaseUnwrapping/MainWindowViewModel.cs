@@ -87,7 +87,7 @@ namespace PhaseUnwrapping
             SetupCommands();
         }
 
-        #region Init 
+        #region Init  
 
         private void SetupCommands()
         {
