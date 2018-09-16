@@ -65,7 +65,7 @@ namespace PhaseUnwrapping
             }
         }
         private BitmapSource mInputImage = null;
-
+         
         public ImageSource OutputImage
         {
             get => mOutputImage;
