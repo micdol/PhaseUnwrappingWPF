@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
@@ -88,6 +89,39 @@ namespace PhaseUnwrapping
             result.WritePixels(roi, pixels, cols, 0);
 
             return result;
+        }
+
+        /// <summary>
+        /// Sets pixels on X-Y (row-col) locations given by <paramref name="points"/> to <paramref name="points"/> value 
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="points"></param>
+        /// <returns></returns>
+        public static BitmapSource SetPoints(this WriteableBitmap image, List<(int row, int col, byte value)> points)
+        {
+            int rows = image.PixelHeight;
+            int cols = image.PixelWidth;
+
+            // Init temp array of pixel values, later to be written into destination image
+            byte[] pixels = new byte[rows * cols];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = 127;
+
+            foreach (var pt in points)
+            {
+                int row = pt.row;
+                int col = pt.col;
+
+                if (row >= 0 && row < rows && col >= 0 && col < cols)
+                {
+                    pixels[row * cols + col] = pt.value;
+                }
+            }
+
+            // Copy pixels to image
+            Int32Rect roi = new Int32Rect(0, 0, cols, rows);
+            image.WritePixels(roi, pixels, cols, 0);
+            
+            return image;
         }
 
         /// <summary>

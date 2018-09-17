@@ -1,6 +1,7 @@
 ﻿using Microsoft.Win32;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -65,7 +66,7 @@ namespace PhaseUnwrapping
             }
         }
         private BitmapSource mInputImage = null;
-         
+
         public ImageSource OutputImage
         {
             get => mOutputImage;
@@ -126,6 +127,7 @@ namespace PhaseUnwrapping
                     fcb.EndInit();
 
                     InputImage = fcb;
+                    OutputImage = new WriteableBitmap(fcb);
                 }
                 catch (Exception e)
                 {
@@ -145,7 +147,7 @@ namespace PhaseUnwrapping
                 }
             });
 
-            UnwrapCommand = new RelayCommand(async () =>
+            UnwrapCommand = new RelayCommand(() =>
             {
                 double[,] wrapped = InputImage.ToDouble2D();
                 var unwrapper = new Itoh(wrapped);
@@ -162,7 +164,7 @@ namespace PhaseUnwrapping
 
                 unwrapper.ComputeResidues();
 
-                OutputImage = InputImage.FromDouble2D(unwrapper.Residues);
+                OutputImage = (OutputImage as WriteableBitmap).SetPoints(unwrapper.Residues.Select(x => (x.row, x.col, (byte)(x.charge < 0 ? 0 : 255))).ToList());
             });
 
             BalanceDipolesCommand = new RelayCommand(() =>
@@ -173,7 +175,7 @@ namespace PhaseUnwrapping
                 unwrapper.ComputeResidues();
                 unwrapper.BalanceDipoles();
 
-                OutputImage = InputImage.FromDouble2D(unwrapper.Residues);
+                OutputImage = (OutputImage as WriteableBitmap).SetPoints(unwrapper.Residues.Select(x => (x.row, x.col, (byte)(x.charge < 0 ? 0 : 255))).ToList());
             });
 
             BranchCutsCommand = new RelayCommand(() =>
@@ -183,8 +185,9 @@ namespace PhaseUnwrapping
 
                 unwrapper.ComputeResidues();
                 unwrapper.BalanceDipoles();
+                unwrapper.ComputeBranchCuts();
 
-                OutputImage = InputImage.FromDouble2D(unwrapper.BranchCuts);
+                OutputImage = (OutputImage as WriteableBitmap).SetPoints(unwrapper.BranchCuts.Select(x => (row: x.row, col: x.col, value: (byte)255)).ToList());
             });
         }
 

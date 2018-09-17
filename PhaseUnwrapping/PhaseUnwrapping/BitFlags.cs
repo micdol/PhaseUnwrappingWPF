@@ -28,7 +28,7 @@
         /// Sets <see cref="POSITIVE_RESIDUE"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkPositiveResidue(this byte b) => b |= POSITIVE_RESIDUE;
+        public static byte MarkPositiveResidue(ref byte b) => b |= POSITIVE_RESIDUE;
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="POSITIVE_RESIDUE"/> bit set
@@ -40,7 +40,7 @@
         /// Sets <see cref="NEGATIVE_RESIDUE"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkNegativeResidue(this byte b) => b |= NEGATIVE_RESIDUE;
+        public static byte MarkNegativeResidue(ref byte b) => b |= NEGATIVE_RESIDUE;
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="NEGATIVE_RESIDUE"/> bit set
@@ -58,13 +58,13 @@
         /// Clears bits <see cref="POSITIVE_RESIDUE"/> and <see cref="NEGATIVE_RESIDUE"/> on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void ClearResidue(this byte b) => b &= (byte)(~RESIDUE);
+        public static byte ClearResidue(ref byte b) => b &= (byte)(~RESIDUE);
 
         /// <summary>
         /// Sets <see cref="VISITED"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkVisited(this byte b) => b |= VISITED;
+        public static byte MarkVisited(ref byte b) => b |= VISITED;
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="VISITED"/> bit set
@@ -76,13 +76,13 @@
         /// Sets <see cref="ACTIVE"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkActive(this byte b) => b |= ACTIVE;
+        public static byte MarkActive(ref byte b) => b |= ACTIVE;
 
         /// <summary>
         /// Clears bit <see cref="ACTIVE"/> on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void ClearActive(this byte b) => b &= (byte)(~ACTIVE);
+        public static byte ClearActive(ref byte b) => b &= (byte)(~ACTIVE);
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="ACTIVE"/> bit set
@@ -94,7 +94,7 @@
         /// Sets <see cref="BRANCH_CUT"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkBranchCut(this byte b) => b |= BRANCH_CUT;
+        public static byte MarkBranchCut(ref byte b) => b |= BRANCH_CUT;
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="BRANCH_CUT"/> bit set
@@ -106,7 +106,7 @@
         /// Sets <see cref="BORDER"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkBorder(this byte b) => b |= BORDER;
+        public static byte MarkBorder(ref byte b) => b |= BORDER;
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="BORDER"/> bit set
@@ -118,19 +118,19 @@
         /// Sets <see cref="UNWRAPPED"/> bit on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkUnwrapped(this byte b) => b |= UNWRAPPED;
+        public static byte MarkUnwrapped(ref byte b) => b |= UNWRAPPED;
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="POSTPONED"/> bit set
         /// </summary>
         /// <param name="b"></param>
-        public static void MarkPostponed(this byte b) => b |= POSTPONED;
+        public static byte MarkPostponed(ref byte b) => b |= POSTPONED;
 
         /// <summary>
         /// Clears bit <see cref="POSTPONED"/> on <paramref name="b"/>
         /// </summary>
         /// <param name="b"></param>
-        public static void ClearPostponed(this byte b) => b &= (byte)(~POSTPONED);
+        public static byte ClearPostponed(ref byte b) => b &= (byte)(~POSTPONED);
 
         /// <summary>
         /// Checks if <paramref name="b"/> has <see cref="AVOID"/> bit set
@@ -157,7 +157,7 @@
         /// <remarks>
         /// code is of int type to avoid irritating (byte) cast if combination of flags is desired, eg.: 1 | 2 | 4 
         /// </remarks>
-        public static void Mark(this byte b, int code) => b |= (byte)code;
+        public static byte Mark(ref byte b, int code) => b |= (byte)code;
 
         #endregion
 

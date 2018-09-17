@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace PhaseUnwrapping
 {
@@ -12,6 +13,8 @@ namespace PhaseUnwrapping
         /// <remarks>
         /// Flag definitions (and some extension methods for them) are provided in <see cref="BitFlags"/> static class
         /// </remarks>
+
+        private static readonly bool DEBUG_OUTPUT_ON = false;
 
         /// <summary>
         /// Due to possible small numerical errors of floating point operations
@@ -37,56 +40,24 @@ namespace PhaseUnwrapping
         }
 
         /// <summary>
-        /// Residues, positive are marked with 1.0 negative with -1.0
+        /// List of residues described as [row, col, charge (-1=negative, 1=positive)]
         /// </summary>
-        public double[,] Residues
+        public List<(int row, int col, sbyte charge)> Residues
         {
-            get
-            {
-                var res = new double[mRows, mCols];
-
-                for (int row = 0; row < mRows; row++)
-                {
-                    for (int col = 0; col < mCols; col++)
-                    {
-                        if (mFlags[row, col].IsPositiveResidue())
-                        {
-                            res[row, col] = 1.0;
-                        }
-                        else if (mFlags[row, col].IsNegativeResidue())
-                        {
-                            res[row, col] = -1.0;
-                        }
-                    }
-                }
-
-                return res;
-            }
+            // Return copy 
+            get => new List<(int, int, sbyte)>(mResidues);
         }
+        private List<(int row, int col, sbyte charge)> mResidues = new List<(int, int, sbyte)>();
 
         /// <summary>
         /// Branch cuts 
         /// </summary>
-        public double[,] BranchCuts
+        public List<(int row, int col)> BranchCuts
         {
-            get
-            {
-                var res = new double[mRows, mCols];
-
-                for (int row = 0; row < mRows; row++)
-                {
-                    for (int col = 0; col < mCols; col++)
-                    {
-                        if (mFlags[row, col].IsBranchCut())
-                        {
-                            res[row, col] = 1.0;
-                        }
-                    }
-                }
-
-                return res;
-            }
+            // Return copy 
+            get => new List<(int, int)>(mBranchCuts);
         }
+        private List<(int row, int col)> mBranchCuts = new List<(int, int)>();
 
         public Goldstein(double[,] wrappedPhase) : base(wrappedPhase)
         {
@@ -113,16 +84,20 @@ namespace PhaseUnwrapping
         /// <returns></returns>
         public int ComputeResidues()
         {
+            // Residues will be recomputed, clear old ones
+            mResidues.Clear();
+
             int numPositive = 0;
             int numNegative = 0;
 
             double integral = 0.0;
+
             for (int row = 0; row < mRows - 1; row++)
             {
                 for (int col = 0; col < mCols - 1; col++)
                 {
                     // Clear residue (either positive or negative) for this pixel
-                    mFlags[row, col].ClearResidue();
+                    mFlags[row, col] &= (byte)(~BitFlags.RESIDUE);
 
                     if (mFlags[row, col].IsAvoid() ||
                         mFlags[row, col + 1].IsAvoid() ||
@@ -150,36 +125,127 @@ namespace PhaseUnwrapping
                     // If the sum != ~0 mark as residue
                     if (integral > EPS)
                     {
-                        Debug.WriteLine("Positive residue @ [{0}, {1}] = {2}", row, col, integral);
-                        mFlags[row, col].MarkPositiveResidue();
+                        Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("Positive residue @ [{0}, {1}] = {2}", row, col, integral));
+
+                        mFlags[row, col] |= BitFlags.POSITIVE_RESIDUE;
+                        mResidues.Add((row, col, 1));
                         numPositive++;
                     }
                     else if (integral < -EPS)
                     {
-                        Debug.WriteLine("Negative residue @ [{0}, {1}] = {2}", row, col, integral);
-                        mFlags[row, col].MarkNegativeResidue();
+                        Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("Negative residue @ [{0}, {1}] = {2}", row, col, integral));
+
+                        mFlags[row, col] |= BitFlags.NEGATIVE_RESIDUE;
+                        mResidues.Add((row, col, -1));
                         numNegative++;
                     }
                 }
             }
 
-            Debug.WriteLine("Number of residues: {0}, positive: {1}, negative: {2}", numPositive + numNegative, numPositive, numNegative);
+            Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("Number of residues: {0}, positive: {1}, negative: {2}", mResidues.Count, numPositive, numNegative));
 
-            return numPositive + numNegative;
+            return mResidues.Count;
         }
-
 
         /// <summary>
         /// Computes branch cuts, it is required to have residues up-to-date, <seealso cref="ComputeResidues"/>
         /// </summary>
         public void ComputeBranchCuts()
         {
-            for (int row = 0; row < mRows; row++)
+            mBranchCuts.Clear();
+
+            int maxBoxSize = 1000000000;
+            List<(int row, int col)> active = new List<(int row, int col)>();
+
+            // Foreach unbalanced residue
+            foreach (var residue in mResidues)
             {
-                for (int col = 0; col < mCols; col++)
+                int row = residue.row;
+                int col = residue.col;
+                int charge = residue.charge;
+
+                ref var pixel = ref mFlags[row, col];
+                pixel |= BitFlags.ACTIVE;
+                pixel |= BitFlags.VISITED;
+
+                active.Add((row, col));
+
+                // "Box" search for another residue around current resiude
+                for (int n = 3; n < maxBoxSize; n += 2)
+                {
+                    // Half of the box (for iterating around)
+                    int boxSize = n / 2;
+
+                    // Foreach active pixel
+                    for (int a = 0; a < active.Count; a++)
+                    {
+                        var boxCenter = active[a];
+
+                        // Foreach pixel in box
+                        for (int boxRow = boxCenter.row - boxSize;
+                            boxRow < boxCenter.row + boxSize;
+                            boxRow++)
+                        {
+                            for (int boxCol = boxCenter.col - boxSize;
+                                boxCol < boxCenter.col + boxSize;
+                                boxCol++)
+                            {
+                                // Out of bounds
+                                if (boxRow < 0 || boxRow >= mRows || boxCol < 0 || boxCol >= mCols)
+                                {
+                                    continue;
+                                }
+
+                                ref byte boxPixel = ref mFlags[boxRow, boxCol];
+
+                                // Box pixel = border pixel -> just place cut to the border
+                                // it will "ground" the charge of the residues just like lightning rod 
+                                if (boxPixel.IsBorder())
+                                {
+                                    charge = 0;
+                                    PlaceBranchCut(row, col, boxRow, boxCol);
+                                }
+                                // Pixel which is inactive residue
+                                else if (boxPixel.IsResidue() && !boxPixel.IsActive())
+                                {
+                                    // Not visited therefore not balanced
+                                    if (!boxPixel.IsVisited())
+                                    {
+                                        charge += boxPixel.IsPositiveResidue() ? 1 : -1;
+                                        boxPixel |= BitFlags.VISITED;
+                                    }
+
+                                    boxPixel |= BitFlags.ACTIVE;
+                                    PlaceBranchCut(row, col, boxRow, boxCol);
+                                }
+
+                                // Charge is balanced - continue search
+                                if (charge == 0)
+                                {
+                                    // goto suppouse to be evil but here its a nice way to break all those billions of loops above
+                                    goto ContinueSearch;
+                                }
+
+                            }
+                        }
+                    }
+                }
+
+                // Box search finished but is the charge balanced?
+                // If it isn't balanced place cut to the nearest border to balance it
+                if (charge != 0)
                 {
 
                 }
+
+                ContinueSearch:
+                while (active.Count != 0)
+                {
+                    var px = active[0];
+                    mFlags[px.row, px.col] &= (byte)(~BitFlags.ACTIVE);
+                    active.RemoveAt(0);
+                }
+
             }
         }
 
@@ -208,14 +274,14 @@ namespace PhaseUnwrapping
                             balanceCol = col + 1;
                         }
                         // Negative residue in the next row
-                        else if (row < mRows - 1 && mFlags[row, col + 1].IsNegativeResidue())
+                        else if (row < mRows - 1 && mFlags[row + 1, col].IsNegativeResidue())
                         {
                             balanceRow = row + 1;
                             balanceCol = col;
                         }
                     }
                     // "Stepped on" negative residue
-                    if (mFlags[row, col].IsNegativeResidue())
+                    else if (mFlags[row, col].IsNegativeResidue())
                     {
                         // Positive residue in the next column
                         if (col < mCols - 1 && mFlags[row, col + 1].IsPositiveResidue())
@@ -236,18 +302,20 @@ namespace PhaseUnwrapping
                     {
                         numDipoles++;
 
-                        Debug.WriteLine("Balancing dipole #{4} between [{0}, {1}] and [{2}, {3}]", row, col, balanceRow, balanceCol, numDipoles);
+                        Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("Balancing dipole #{4} between [{0}, {1}] and [{2}, {3}]", row, col, balanceRow, balanceCol, numDipoles));
 
                         // Place cut...
                         PlaceBranchCut(row, col, balanceRow, balanceCol);
 
-                        // ...and remove resiude flag
-                        mFlags[row, col].ClearResidue();
-                        mFlags[balanceRow, balanceCol].ClearResidue();
+                        // ...and remove resiude & flag
+                        mFlags[row, col] &= (byte)(~BitFlags.RESIDUE);
+                        mFlags[balanceRow, balanceCol] &= (byte)(~BitFlags.RESIDUE);
+                        int removed = mResidues.RemoveAll(x => (x.row == row && x.col == col) || (x.row == balanceRow && x.col == balanceCol));
                     }
-
                 }
             }
+
+            Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("Removed {0} residues, number of branch cuts generated: {1}", numDipoles * 2, BranchCuts.Count));
 
             return numDipoles;
         }
@@ -264,6 +332,8 @@ namespace PhaseUnwrapping
         /// <param name="dstCol"></param>
         private void PlaceBranchCut(int srcRow, int srcCol, int dstRow, int dstCol)
         {
+            Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("Placing branch cut between [{0}, {1}] and [{2}, {3}] through pixels:", srcRow, srcCol, dstRow, dstCol));
+
             // Residue location in flags array is in the upper left corner of the four pixels surrounding it
             // however real postion is in the center of these pixels, while placing cut this need to be taken
             // into account as only real residues need to be connected -> therfore the inital move in cols/rows.
@@ -280,7 +350,10 @@ namespace PhaseUnwrapping
             // It's the same pixel, update flag and return
             if (srcRow == dstRow && srcCol == dstCol)
             {
-                mFlags[srcRow, srcCol].MarkBranchCut();
+                Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("[{0}, {1}]", srcRow, srcCol));
+
+                mFlags[srcRow, srcCol] |= BitFlags.BRANCH_CUT;
+                mBranchCuts.Add((srcRow, srcCol));
                 return;
             }
 
@@ -295,7 +368,7 @@ namespace PhaseUnwrapping
 
             // TODO Kind of like Bresenham line algo? note: bresenhm cant draw vertical lines
             // TODO OpenCV has LineIterator
-            // TODO further analyze
+            // TODO further analyze because now its just sort of mindlessly re-written 
             if (dRows > dCols)
             {
                 int step = srcRow < dstRow ? 1 : -1;
@@ -303,9 +376,11 @@ namespace PhaseUnwrapping
                 for (int row = srcRow; row != dstRow + step; row += step)
                 {
                     int col = (int)(srcCol + (row - srcRow) * a + 0.5);
-                    mFlags[row, col].MarkBranchCut();
-                }
+                    mFlags[row, col] |= BitFlags.BRANCH_CUT;
+                    mBranchCuts.Add((row, col));
 
+                    Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("[{0}, {1}] ", row, col));
+                }
             }
             else
             {
@@ -314,9 +389,14 @@ namespace PhaseUnwrapping
                 for (int col = srcCol; col != dstCol + step; col += step)
                 {
                     int row = (int)(srcRow + (col - srcCol) * a + 0.5);
-                    mFlags[row, col].MarkBranchCut();
+                    mFlags[row, col] |= BitFlags.BRANCH_CUT;
+                    mBranchCuts.Add((row, col));
+
+                    Debug.WriteLineIf(DEBUG_OUTPUT_ON, string.Format("[{0}, {1}] ", row, col));
                 }
             }
+
+            Debug.WriteLineIf(DEBUG_OUTPUT_ON, "");
         }
 
         /// <summary>
@@ -333,11 +413,11 @@ namespace PhaseUnwrapping
                 {
                     if (row == 0 || row == mRows - 1)
                     {
-                        mFlags[row, col].MarkBorder();
+                        mFlags[row, col] |= BitFlags.BORDER;
                     }
                     else if (col == 0 || col == mCols - 1)
                     {
-                        mFlags[row, col].MarkBorder();
+                        mFlags[row, col] |= BitFlags.BORDER;
                     }
                 });
             });
