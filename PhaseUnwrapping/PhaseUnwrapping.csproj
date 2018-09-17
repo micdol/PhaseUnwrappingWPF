@@ -55,7 +55,8 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="MainWindowViewModel.cs" />
-    <Compile Include="PhaseUnwrapping\Base\Unwrapper.cs" />
+    <Compile Include="PhaseUnwrapping\Base\BaseUnwrapper.cs" />
+    <Compile Include="PhaseUnwrapping\BitFlags.cs" />
     <Compile Include="PhaseUnwrapping\Goldstein.cs" />
     <Compile Include="PhaseUnwrapping\Itoh.cs" />
     <Compile Include="PhaseUnwrapping\Utilities.cs" />
